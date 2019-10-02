@@ -1,0 +1,4 @@
+MacDonalds/08:00/21:00/012345/{'Double cheeseburger meal': '$6.10', 'McWings - 4pc meal': '$6.10', 'Chicken nuggets - 6pc meal': '$6.10', 'Grilled chicken salad meal': '$7.55'}
+KFC/09:00/21:00/01234/{'Variety Feast': '$40.95', '16 pcs for $24': '$24.00', 'Snack N Share Box': '$12.95', '10 pcs Chicken Bucket': '$27.00'}
+Subway/10:00/22:00/01234/{'Black Forest Ham': '$7.10', 'Chicken & Bacon Ranch Melt': '$8.20', 'Cold Cut Trio': '$5.50', 'Italian B.M.T': '$6.50'}
+Chicken Rice/08:30/20:40/01234/{'Half Chicken': '$15.00', 'Full Chicken': '$40.00', 'Quarter Chicken': '$6.00', 'No Chicken': '$2.00'}
