@@ -2,67 +2,223 @@ import tkinter as tk
 from tkinter import ttk
 import functools
 import ast
-from Stall import *
+import datetime
+from dateutil.parser import parse
+import random
+import tkcalendar
+import time
 from Fonts import *
+from StallModule import Stall
 
-# inherit from tk.Tk
 class Window(tk.Tk):
-    
-    # *args, **kwargs represent infinite number of arguments and 
-    # keywords/named arguments that can be taken in
     def __init__(self, *args, **kwargs):
-        
-        # init the tk.Tk class to be inherited
-        # set icon of GUI
-        # set title of GUI
         tk.Tk.__init__(self, *args, **kwargs)
         tk.Tk.iconbitmap(self, default='dog.ico')
         tk.Tk.wm_title(self, 'Mini Project')
         
-        # create instance variable to store instance of tk.Frame
-        # scale this frame to the current window size
-        # best to set weight
-        # best to set weight
         self.container = tk.Frame(self)
         self.container.pack(side='top', fill='both', expand=True)
         self.container.grid_rowconfigure(0, weight=1)
         self.container.grid_columnconfigure(0, weight=1)
         
-        # init empty dictionary
         self.frames = {}
         
-        # for every frame
-        for F in (MainMenu, ViewStalls, ShowMenu, AddStalls):
-            
-            # each frame/page takes in (tk.Frame(WindowInstance), WindowInstance)
-            # which are parent and controller respectively
+        for F in (MainMenu, ViewStalls, ShowMenu):
             frame = F(self.container, self)
-            
-            # creates dictionary {F: frame, F: frame, F: frame} for every F and its instance
             self.frames[F] = frame
-            
-            # scale to fill screen
             frame.grid(row=0, column=0, sticky='nsew')
-
-        # calls the class method to show the MainMenu frame
-        self.show_frame(MainMenu)
         
-    # brings the specified frame to the top
-    def show_frame(self, container):
-        
-        # retrieves value tagged to the container in the dictionary
-        # {container: frame, container: frame, container: frame}
-        frame = self.frames[container]
-        frame.tkraise()
-        
+        self.show_frame(MainMenu, 'load')
             
-    # same as show_frame but also takes in name of the current stallInstance
-    def show_menu(self, container, name):
-        frame = self.frames[container]
-        frame.tkraise()
+    def show_frame(self, container, string):
+        if string == 'load':
+            print('loading')
+            frame = self.frames[container]
+            frame.grid(row=0, column=0, sticky='nsew')
+            frame.tkraise()
         
-        for label in frame.labels:
-            label.destroy()
+        if string == 'refresh':
+            print('refreshing')
+            frame = container(self.container, self)
+            self.frames[container] = frame
+            frame.grid(row=0, column=0, sticky='nsew')
+            frame.tkraise()
+        
+        if string != 'load' and string != 'refresh':
+            print('wrong string:', string, type(string))
+
+class MainMenu(tk.Frame):
+    def __init__(self, parent, controller):
+        tk.Frame.__init__(self, parent)
+        
+        label = tk.Label(self, text='Welcome!', font=main_menu_heading_font)
+        label.pack(pady=10, padx=10)
+        
+        style = ttk.Style()
+        style.configure('general.TButton', font = ('Time News Roman','25'))
+        
+        button1 = ttk.Button(self, text='View Stalls', style='general.TButton',
+                             command=lambda: controller.show_frame(ViewStalls, 'load'))
+        
+        button1.place(anchor='center', rely=0.5, relx=0.5, height=100, width=400)
+
+class ViewStalls(tk.Frame):
+    def __init__(self, parent, controller):
+        tk.Frame.__init__(self, parent)
+        global date_selection
+        global timerange_selection
+        choices = []
+
+        print('Initialized, date_selection = {}, timerange_selection = {}'.format(date_selection, timerange_selection))
+        
+        # config fonts
+        style = ttk.Style()
+        style.configure('stall_name.TButton', font = ('Helvetica','30'))
+        #style.configure('back.TButton', font = ('Helvetica','30'), foreground='maroon')
+
+        back_button = ttk.Button(self, text='Back', style='',
+                                 command=lambda: controller.show_frame(MainMenu, 'load'))
+        back_button.pack(anchor='nw')
+        
+        # check if date selected
+        # if yes then create button with the date
+        # if not then see else:
+        if date_selection:
+            # gen timeranges
+            delta = datetime.timedelta(hours=1)
+            gen_time = parse('00:00')
+            for i in range(24):
+                time_range = ('{}-{}'.format(gen_time.time(), '{}'))
+                gen_time += delta
+                choices.append(time_range.format(gen_time.time()))
+
+            # add day to the button
+            day = date_selection.weekday()
+            days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+
+            # refresh again
+            select_date_button = ttk.Button(self, text=(days[day], date_selection),
+                                            command=lambda: self.show_calendar(controller))
+            select_date_button.pack(anchor='nw')
+                
+            # stuff to prepare for droplist
+            self.variable = tk.StringVar(self)
+
+            if not timerange_selection:
+                print('Setting default value:', choices[8])
+                self.variable.set(choices[8])
+                timerange_selection = choices[8]
+            
+            else:
+                print('Setting timerange_selection:', timerange_selection)
+                self.variable.set(timerange_selection)
+            
+            # lambda *args: self.callback()
+            self.variable.trace("w", lambda *args: self.callback(controller))
+
+            # generate droplist
+            options = tk.OptionMenu(self, self.variable, *choices)
+            options.pack(anchor='nw')
+
+        # run this if no date_selection
+        # which will create a button to ask for date_selection
+        else:
+            calendar_button = ttk.Button(self, text='Select Date', style='',
+                                         command=lambda: self.show_calendar(controller))
+            calendar_button.pack(anchor='nw')
+
+        # create a canvas object and a vertical scrollbar for scrolling it
+        vscrollbar = tk.Scrollbar(self, orient=tk.VERTICAL)
+        vscrollbar.pack(fill=tk.Y, side=tk.RIGHT, expand=False)
+        self.canvas = tk.Canvas(self, bd=0, highlightthickness=0,
+                        yscrollcommand=vscrollbar.set)
+        self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        vscrollbar.config(command=self.canvas.yview)
+
+        # reset the view
+        self.canvas.yview_moveto(0)
+
+        # create a frame inside the canvas which will be scrolled with it
+        self.interior = tk.Frame(self.canvas)
+        self.interior_id = self.canvas.create_window(0, 0, window=self.interior, anchor=tk.NW)
+        
+        self.interior.bind('<Configure>', self._configure_interior)
+        self.canvas.bind('<Configure>', self._configure_canvas)            
+        self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)
+        
+        # read data
+        with open('stall.txt', 'r') as data:
+
+            lines = data.readlines()
+
+            for line in lines:
+                line = line.split('/')
+                line[4] = ast.literal_eval(line[4])
+                stall = Stall(line[0], line[1], line[2], line[3], line[4])
+                
+                if not date_selection:
+                    if stall.now_open():
+                        # functools.partial takes in as args a method, a frame and the name of a stallInstance
+                        # the method takes the last 2 args as its own args and runs only when clicked
+                        # instead of running with every stall objects's name at initialization
+                        button_x = ttk.Button(self.interior, text=stall.name, style='stall_name.TButton',
+                                              command=functools.partial(self.show_menu, ShowMenu, controller, stall.name))
+                        button_x.pack(anchor='center')
+                else:
+                    _open = parse(timerange_selection.split('-')[0]).time()
+                    close = parse(timerange_selection.split('-')[1]).time()
+                    if stall.is_open(_open, close, line[3]):
+                        button_x = ttk.Button(self.interior, text=stall.name, style='stall_name.TButton',
+                                              command=functools.partial(self.show_menu, ShowMenu, controller, stall.name))
+                        button_x.pack(anchor='center')
+
+    # store current timerange in global var, refresh ViewStalls
+    def callback(self, controller, *args):
+        global timerange_selection
+        timerange_selection = self.variable.get()
+        print('Running callback, timerange_selection = {}'.format(timerange_selection))
+        controller.show_frame(ViewStalls, 'refresh')
+
+
+    def show_calendar(self, controller):
+        self.top = tk.Toplevel(self)
+        self.top.geometry('{}x{}+{}+{}'.format(300, 250, 368, 132))
+        self.cald = tkcalendar.Calendar(self.top)
+        self.cald.pack(fill='both', expand=True)
+        button = ttk.Button(self.top, text='Okay', style='',
+                            command=lambda: self.print_sel(controller))
+        button.pack(anchor='s')
+
+    def print_sel(self, controller):
+        global date_selection
+        global timerange_selection
+        date_selection = self.cald.selection_get()
+        self.top.destroy()
+        controller.show_frame(ViewStalls, 'refresh')
+
+    # track changes to the canvas and frame width and sync them,
+    # also updating the scrollbar
+    def _configure_interior(self, event):
+        # update the scrollbars to match the size of the inner frame
+        size = (self.interior.winfo_reqwidth(), self.interior.winfo_reqheight())
+        self.canvas.config(scrollregion="0 0 %s %s" % size)
+        
+        if self.interior.winfo_reqwidth() != self.canvas.winfo_width():
+            # update the canvas's width to fit the inner frame
+            self.canvas.config(width=self.interior.winfo_reqwidth())
+            
+    def _configure_canvas(self, event):
+        if self.interior.winfo_reqwidth() != self.canvas.winfo_width():
+            # update the inner frame's width to fill the canvas
+            self.canvas.itemconfigure(self.interior_id, width=self.canvas.winfo_width())
+            
+    def _on_mousewheel(self, event):
+        self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+                                                  
+    def show_menu(self, container, controller, name):
+        controller.show_frame(container, 'refresh')
+        
+        frame = controller.frames[container]
         
         # read and store every line in variable lines
         with open('stall.txt', 'r') as data:
@@ -85,282 +241,106 @@ class Window(tk.Tk):
                     
                     # displaying items in menu
                     for key, value in stall.menu.items():
-                        label_key = tk.Label(frame, text=key, font=label_font)
-                        label_value = tk.Label(frame, text=value, font=label_font)
+                        label_key = tk.Label(frame.interior, text=key, font=menu_font)
+                        label_value = tk.Label(frame.interior, text=value, font=menu_font)
                         
-                        label_key.grid(row=frame.row, column=frame.column)
-                        
-                        frame.column += 1
-                        
-                        label_value.grid(row=frame.row, column=frame.column)
-                        
-                        frame.row +=1
-                        frame.column = 0
-                        
-                        frame.labels.append(label_key)
-                        frame.labels.append(label_value)
-                        
-    def popup(self, msg):
-        popup = tk.Tk()
+                        label_key.pack()
+                        label_value.pack()
         
-        popup.wm_title('test')
-        screen_width = popup.winfo_screenwidth()
-        screen_height = popup.winfo_screenheight()
+        frame.tkraise()
 
-        win_width = 100
-        win_height = 60
-
-        start_x = int((screen_width/2) - (win_width/2))
-        start_y = int((screen_height/2) - (win_height/2))
-
-        popup.geometry('{}x{}+{}+{}'.format(win_width, win_height, start_x, start_y))
-        
-        label = ttk.Label(popup, text=msg)
-        label.pack(side='top', fill='x', pady=10)
-        button = ttk.Button(popup, text='Okay', command=popup.destroy)
-        button.pack()
-                        
-
-        
-# main page that inherits from tk.Frame that was init in Window
-class MainMenu(tk.Frame):
-    
-    # recall (parent, controller) is (tk.Frame(WindowInstance), WindowInstance)
+class ShowMenu(tk.Frame):
     def __init__(self, parent, controller):
         tk.Frame.__init__(self, parent)
-        
-        label = tk.Label(self, text='Welcome!', font=LARGE_FONT)
-        label.pack(pady=10, padx=10)
-        
-        style = ttk.Style()
-        style.configure('general.TButton', font = ('Time News Roman','25'))
-        
-        # when clicked, runs lambda command which runs show_frame method
-        # lambda is used so as to run the method only when clicked
-        # if no lambda, method runs at runtime
-        # lambda is an anonymous function as compared to functools.partial later in the code
-        # the latter is preferred as its not anonymous and allows preloading a function
-        # and freezing preloaded args, allowing for more args if needed
-        button1 = ttk.Button(self, text='View Stalls', style='general.TButton',
-                             command=lambda: controller.show_frame(ViewStalls))
-        
-        # fix button to middle even if window is scaled
-        button1.place(anchor='center', rely=0.4, relx=0.5, height=100, width=400)
-        
-        button2 = ttk.Button(self, text='Add Stalls', style='general.TButton',
-                             command=lambda: controller.show_frame(AddStalls))
-        
-        button2.place(anchor='center', rely=0.6, relx=0.5, height=100, width=400)
-        
-        
-class ViewStalls(tk.Frame):
-    
-    def __init__(self, parent, controller):
-        tk.Frame.__init__(self, parent)
-        
-        style = ttk.Style()
-        style.configure('stall.TButton', font = ('Time News Roman','20'))
-        
-        back_button = ttk.Button(self, text='Back', command=lambda: controller.show_frame(MainMenu))
+
+        back_button = ttk.Button(self, text='Back', command=lambda: controller.show_frame(ViewStalls, 'load'))
         back_button.pack(anchor='nw')
         
+        var = tk.StringVar(value='Enter number of people currently in queue.')
+        self.waiting_field = tk.Entry(self, font=field_font, textvariable=var, width=36)
+        self.waiting_field.config(fg = 'grey')
+        self.waiting_field.pack(anchor='nw')
         
-        with open('stall.txt', 'r') as data:
-    
-            lines = data.readlines()
+        self.waiting_field.bind('<FocusIn>', lambda *args: self.on_entry_click())
+        self.waiting_field.bind('<FocusOut>', lambda *args: self.on_focusout())
+        
+        calculate_button = ttk.Button(self, text='Calculate', command=lambda: self.waiting_time(var.get()))
+        calculate_button.pack(anchor='nw')
+        
+        # create a canvas object and a vertical scrollbar for scrolling it
+        vscrollbar = tk.Scrollbar(self, orient=tk.VERTICAL)
+        vscrollbar.pack(fill=tk.Y, side=tk.RIGHT, expand=False)
+        self.canvas = tk.Canvas(self, bd=0, highlightthickness=0,
+                        yscrollcommand=vscrollbar.set)
+        self.canvas.pack(anchor=tk.N, fill=tk.BOTH, expand=True)
+        vscrollbar.config(command=self.canvas.yview)
 
-            for line in lines:
-                line = line.split('/')
-                line[4] = ast.literal_eval(line[4])
-                stall = Stall(line[0], line[1], line[2], line[3], line[4])
-                
-                # functools.partial takes in as args a method, a frame and the name of a stallInstance
-                # the method takes the last 2 args as its own args and runs only when clicked
-                # instead of running with every stall objects's name at initialization
-                button_x = ttk.Button(self, text=stall.name, style='stall.TButton',
-                                      command=functools.partial(controller.show_menu, ShowMenu, stall.name))
-                button_x.pack(anchor='center')
-                
-                
-        
-class ShowMenu(tk.Frame):
-    
-    row = 1
-    column = 0
-    labels = []
-    
-    def __init__(self, parent, controller):
-        tk.Frame.__init__(self, parent)
+        # reset the view
+        self.canvas.yview_moveto(0)
 
-        back_button = ttk.Button(self, text='Back', command=lambda: controller.show_frame(ViewStalls))
-        back_button.grid_rowconfigure(0, weight=1)
-        back_button.grid_columnconfigure(0, weight=1)
-        back_button.grid(row=0, column=0, sticky='nw')
-         
+        # create a frame inside the canvas which will be scrolled with it
+        self.interior = tk.Frame(self.canvas)
+        self.interior_id = self.canvas.create_window(0, 0, window=self.interior, anchor=tk.NW)
         
-                        
-class AddStalls(tk.Frame):
-    
-    text = ['Stall Name', 'Opening Time', 'Closing Time', 'Item Name', 'Item Cost']
-    row = 1
-    column = 0
-    entries = []
-    states = []
-    index = 0
-    days = ''
-    last = None
-    menu = {}
-    cost = ''
-    item_name  = ''
-    
-    def __init__(self, parent, controller):
-        tk.Frame.__init__(self, parent)
+        self.interior.bind('<Configure>', self._configure_interior)
+        self.canvas.bind('<Configure>', self._configure_canvas)            
+        self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)
+
+    # track changes to the canvas and frame width and sync them,
+    # also updating the scrollbar
+    def _configure_interior(self, event):
+        # update the scrollbars to match the size of the inner frame
+        size = (self.interior.winfo_reqwidth(), self.interior.winfo_reqheight())
+        self.canvas.config(scrollregion="0 0 %s %s" % size)
         
-        back_button = ttk.Button(self, text='Back', command=lambda: controller.show_frame(MainMenu))
-        back_button.grid(row=0, column=0, sticky='nw')
-        
-        for index in range(len(self.text)):
-            label = tk.Label(self, text=self.text[index], font=label_font)
-            label.grid(row=self.row, column=self.column)
+        if self.interior.winfo_reqwidth() != self.canvas.winfo_width():
+            # update the canvas's width to fit the inner frame
+            self.canvas.config(width=self.interior.winfo_reqwidth())
             
-            self.column += 1
+    def _configure_canvas(self, event):
+        if self.interior.winfo_reqwidth() != self.canvas.winfo_width():
+            # update the inner frame's width to fill the canvas
+            self.canvas.itemconfigure(self.interior_id, width=self.canvas.winfo_width())
             
-            entry = ttk.Entry(self, font=field_font)
-            entry.grid(row=self.row, column=self.column)
+    def _on_mousewheel(self, event):
+        self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        
+    def on_entry_click(self):
+        print('in')
+        if self.waiting_field.get() == 'Enter number of people currently in queue.':
+            self.waiting_field.delete(0, "end") # delete all the text in the entry
+            self.waiting_field.insert(0, '') #Insert blank for user input
+            self.waiting_field.config(fg = 'black')
+    def on_focusout(self):
+        print('out')
+        if self.waiting_field.get() == '':
+            self.waiting_field.insert(0, 'Enter number of people currently in queue.')
+            self.waiting_field.config(fg = 'grey')
             
-            self.entries.append(entry)
+    def waiting_time(self, pax):
+        print('calculating')
+        total_time = 0
+        
+        try:
+            pax = int(pax)
+        
+            # random float for time taken per pax
+            for ppl in range(pax):
+                time_taken = random.uniform(1, 3)
+                total_time += time_taken
+
+            self.top = tk.Toplevel(self)
+            self.top.geometry('{}x{}+{}+{}'.format(200, 50, 368, 132))
+            text = 'Estimated waiting time: {} minutes'.format(int(total_time))
+            tk.Label(self.top, text=text).pack()
+            ttk.Button(self.top, text='Okay', command=lambda: self.top.destroy()).pack()
             
-            self.row += 1
-            self.column = 0
-            
-        add_button = tk.Button(self, text='Add', command=lambda: add(self), height=2)
-        
-        self.row -= 1
-        self.column += 2
-        
-        add_button.grid(row=self.row, column=self.column)
-        
-        remove_button = tk.Button(self, text='Undo', command=lambda: undo(self, 'menu'), height=2)
-        
-        self.column += 1
-        
-        remove_button.grid(row=self.row, column=self.column)
-        
-        self.row += 1
-        self.column = 0
-        
-        # create Check buttons for days open
-        for day in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']:
-            variable = tk.IntVar()
-            checkbutton = tk.Checkbutton(self, text=day, variable=variable, onvalue=1, offvalue=0)
-            checkbutton.grid(row=self.row, column=self.column)
-            
-            self.states.append(variable)
-            
-            self.row += 1
-            self.column = 0
-        
-        self.row += 1
-        self.column = 0
-        save_button = ttk.Button(self, text='Save', command=lambda: verify_save(self))
-        save_button.grid(row=self.row, column=self.column)
-        
-        self.row += 1
-        
-        undo_button = ttk.Button(self, text='Undo', command=lambda: undo(self, 'stall'))
-        undo_button.grid(row=self.row)
-        
-        # verifies entries are acceptable then saves
-        def verify_save(self):
-            
-            # verify block
-            try:
-                name = self.entries[0].get()
-                _open = self.entries[1].get()
-                close = self.entries[2].get()
+        except:
+            top = tk.Toplevel(self)
+            top.geometry('{}x{}+{}+{}'.format(200, 50, 368, 132))
+            tk.Label(top, text='Please enter a number.').pack()
+            ttk.Button(top, text='Okay', command=lambda: top.destroy()).pack()
 
-                # checks if all are letters
-                for letter in name:
-                    if letter.lower() not in alphabets:
-                        raise EOFError
-
-                # check if ':' in in the times
-                if ':' not in _open or ':' not in close:
-                    raise EOFError
-
-                # check if all are numbers
-                for number in _open:
-                    if number not in numbers:
-                        raise EOFError
-
-                for number in close:
-                    if number not in numbers:
-                        raise EOFError
-
-                # check for 5 characters which guarantees HH:MM format at this point
-                if len(_open) != len(close) or len(_open) != 5:
-                    raise EOFError
-
-                # get the state of the Checkbuttons
-                # if checked, add corresponding number to self.days string
-                # 0 for mon and so on
-                for thing in self.states:
-                    state = thing.get()
-                    selected = 1
-                    if state == selected:
-                        self.days += str(self.index)
-
-                    self.index += 1
-
-                # append all the details in one line
-                with open('stall_tmp.txt', 'a') as f:
-                    seperator = '/'
-                    self.menu = str(self.menu)
-                    self.last = seperator.join((name, _open, close, self.days, self.menu))
-                    f.write(self.last)
-
-            except:
-                controller.popup('Error')
-                    
-        def undo(self, string):
-                        
-            if string == 'stall':
-            
-                with open('stall_tmp.txt', 'r') as read:
-                    lines = read.readlines()
-
-                with open('stall_tmp.txt', 'w') as write:
-                    for line in lines:
-                        if line != self.last:
-                            write.write(line)
-                            
-            if string == 'menu':
-                
-                del self.menu[self.last]
-                        
-        def add(self):
-            
-            self.item_name = self.entries[3].get()
-            self.cost = self.entries[4].get()
-            
-            try:
-                
-                for letter in self.item_name:
-                    if letter.lower() not in alphabets:
-                        raise EOFError
-
-                for number in self.cost:
-                    if number not in money:
-                        raise EOFError
-
-                if '.' not in self.cost:
-                    raise EOFError
-
-                if len(self.cost.split('.')[1]) != 2:
-                    raise EOFError
-
-            except:
-                controller.popup(('Error'))
-            
-            self.menu[self.item_name] = self.cost
-            self.last = self.item_name
+date_selection = False
+timerange_selection = False
+shrink_entry = False

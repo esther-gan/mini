@@ -1,5 +1,9 @@
 from GUI import *
 
+date_selection = False
+timerange_selection = False
+shrink_entry = False
+
 app = Window()
 
 # set window to 800x600 and place it in center of your screen
