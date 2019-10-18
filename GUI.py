@@ -9,6 +9,7 @@ import tkcalendar
 import time
 from Fonts import *
 from StallModule import Stall
+import pickle
 
 class Window(tk.Tk):
     def __init__(self, *args, **kwargs):
@@ -23,13 +24,16 @@ class Window(tk.Tk):
         
         self.frames = {}
         
+        # preload all pages and store in a dict
         for F in (MainMenu, ViewStalls, ShowMenu):
             frame = F(self.container, self)
             self.frames[F] = frame
             frame.grid(row=0, column=0, sticky='nsew')
         
         self.show_frame(MainMenu, 'load')
-            
+    
+    # 'load' just brings the specified frame to the front
+    # 'refresh' reloads the page and brings it to the front
     def show_frame(self, container, string):
         if string == 'load':
             print('loading')
@@ -46,7 +50,7 @@ class Window(tk.Tk):
         
         if string != 'load' and string != 'refresh':
             print('wrong string:', string, type(string))
-
+            
 class MainMenu(tk.Frame):
     def __init__(self, parent, controller):
         tk.Frame.__init__(self, parent)
@@ -113,7 +117,7 @@ class ViewStalls(tk.Frame):
                 print('Setting timerange_selection:', timerange_selection)
                 self.variable.set(timerange_selection)
             
-            # lambda *args: self.callback()
+            # when variable changes runs callback
             self.variable.trace("w", lambda *args: self.callback(controller))
 
             # generate droplist
@@ -146,32 +150,128 @@ class ViewStalls(tk.Frame):
         self.canvas.bind('<Configure>', self._configure_canvas)            
         self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)
         
-        # read data
-        with open('stall.txt', 'r') as data:
+        self.stalls = []
+        
+###########################################################################
+# Previous Draft
+###########################################################################
 
-            lines = data.readlines()
+#         # open file in read mode
+#         with open('stall.txt', 'r') as data:
 
-            for line in lines:
-                line = line.split('/')
-                line[4] = ast.literal_eval(line[4])
-                stall = Stall(line[0], line[1], line[2], line[3], line[4])
+#             # generates a list where each element is an individual line in the file
+#             lines = data.readlines()
+
+#             # for each individual line in list of lines
+#             for line in lines:
                 
-                if not date_selection:
-                    if stall.now_open():
-                        # functools.partial takes in as args a method, a frame and the name of a stallInstance
-                        # the method takes the last 2 args as its own args and runs only when clicked
-                        # instead of running with every stall objects's name at initialization
-                        button_x = ttk.Button(self.interior, text=stall.name, style='stall_name.TButton',
-                                              command=functools.partial(self.show_menu, ShowMenu, controller, stall.name))
-                        button_x.pack(anchor='center')
-                else:
-                    _open = parse(timerange_selection.split('-')[0]).time()
-                    close = parse(timerange_selection.split('-')[1]).time()
-                    if stall.is_open(_open, close, line[3]):
-                        button_x = ttk.Button(self.interior, text=stall.name, style='stall_name.TButton',
-                                              command=functools.partial(self.show_menu, ShowMenu, controller, stall.name))
-                        button_x.pack(anchor='center')
+#                 # information is stored in the following format
+#                 # name/opentime/closetime/daysopen/menu
+#                 # split seperates each line into a list where each element is now
+#                 # name or opentime or closetime or days or openmenu
+#                 # now u have:
+#                 # lines = [ [name, opentime, closetime, daysopen, menu],
+#                 #           [                                         ],
+#                 #            ...
+#                 #         ]
+#                 line = line.split('/')
+                
+#                 # menu is a dictionary that had to be stored as string
+#                 # this line forces python to read whats in the string so as to realise its a dict
+#                 # and proceeds to read it as a dict
+#                 line[4] = ast.literal_eval(line[4])
+                
+#                 # creates a stall object with the respetive inputs
+#                 stall = Stall(line[0], line[1], line[2], line[3], line[4])
+                
+#                 # date_selection is the variable that stores user input for date
+#                 # date_selection is False by default
+#                 # this if block thus runs by default
+#                 if not date_selection:
+                    
+#                     # if calls now_open func in class Stall to check if stall open now
+#                     # if yes then display as button
+#                     if stall.now_open():
+                        
+#                         # recall show_menu(self, container, controller, name)
+#                         # if this was the command:
+#                         # command=self.show_menu(ShowMenu, controller, stall.name) will run on initialization
+#                         # meaning when button is created, the show_menu function will attempt to execute
+#                         #
+#                         # if this was the command:
+#                         # command=lambda: self.show_menu(ShowMenu, controller, stall.name)
+#                         # stall.name will be written over
+#                         # meaning every button when clicked will run the show_menu function
+#                         # but with the last stall object's stall.name as the input to the show_menu function
+#                         #
+#                         # the command below will store each unique stall.name as input to a partial function
+#                         # that will be called when the respective button is clicked
+#                         button_x = ttk.Button(self.interior, text=stall.name, style='stall_name.TButton',
+#                                               command=functools.partial(self.show_menu, ShowMenu, controller, stall.name))
+#                         button_x.pack(anchor='center')
+#                 else:
+#                     _open = parse(timerange_selection.split('-')[0]).time()
+#                     close = parse(timerange_selection.split('-')[1]).time()
+#                     if stall.is_open(_open, close, line[3]):
+#                         button_x = ttk.Button(self.interior, text=stall.name, style='stall_name.TButton',
+#                                               command=functools.partial(self.show_menu, ShowMenu, controller, stall.name))
+#                         button_x.pack(anchor='center')
 
+
+###########################################################################
+# Cleaner with pickle
+###########################################################################
+        # load all pickled objects into the list self.stalls
+        with open('stall', 'rb') as data:
+            try:
+                while True:
+                    stall = pickle.load(data)
+                    self.stalls.append(stall)
+            except EOFError:
+                print('No more stalls to load')
+                
+        for stall in self.stalls:
+            # date_selection is the variable that stores user input for date
+            # date_selection is False by default
+            # this if block thus runs by default
+            if not date_selection:
+
+                # if calls now_open func in class Stall to check if stall open now
+                # if yes then display as button
+                if stall.now_open():
+
+                    # recall show_menu(self, container, controller, name)
+                    # if this was the command:
+                    # command=self.show_menu(ShowMenu, controller, stall.name) will run on initialization
+                    # meaning when button is created, the show_menu function will attempt to execute
+                    #
+                    # if this was the command:
+                    # command=lambda: self.show_menu(ShowMenu, controller, stall.name)
+                    # stall.name will be written over
+                    # meaning every button when clicked will run the show_menu function
+                    # but with the last stall object's stall.name as the input to the show_menu function
+                    #
+                    # the command below will store each unique stall.name as input to a partial function
+                    # that will be called when the respective button is clicked
+                    button_x = ttk.Button(self.interior, text=stall.name, style='stall_name.TButton',
+                                          command=functools.partial(self.show_menu, ShowMenu, controller, stall.name))
+                    button_x.pack(anchor='center')
+                    
+            else:
+                # user input for time range is stored in time_range_selection
+                # split to get start and end to put into stall function
+                # to check if open
+                _open = parse(timerange_selection.split('-')[0]).time()
+                close = parse(timerange_selection.split('-')[1]).time()
+                if stall.is_open(_open, close, stall.days):
+                    button_x = ttk.Button(self.interior, text=stall.name, style='stall_name.TButton',
+                                          command=functools.partial(self.show_menu, ShowMenu, controller, stall.name))
+                    button_x.pack(anchor='center')
+
+###########################################################################
+# End of above block of edit
+###########################################################################
+                    
     # store current timerange in global var, refresh ViewStalls
     def callback(self, controller, *args):
         global timerange_selection
@@ -182,7 +282,7 @@ class ViewStalls(tk.Frame):
 
     def show_calendar(self, controller):
         self.top = tk.Toplevel(self)
-        self.top.geometry('{}x{}+{}+{}'.format(300, 250, 368, 132))
+        self.top.geometry('{}x{}+{}+{}'.format(300, 250, start_x, start_y))
         self.cald = tkcalendar.Calendar(self.top)
         self.cald.pack(fill='both', expand=True)
         button = ttk.Button(self.top, text='Okay', style='',
@@ -213,41 +313,87 @@ class ViewStalls(tk.Frame):
             self.canvas.itemconfigure(self.interior_id, width=self.canvas.winfo_width())
             
     def _on_mousewheel(self, event):
-        self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        self.canvas.yview_scroll(int(-1*(event.delta/12)), "units")
                                                   
     def show_menu(self, container, controller, name):
+        print('showing', name)
         controller.show_frame(container, 'refresh')
         
         frame = controller.frames[container]
         
-        # read and store every line in variable lines
-        with open('stall.txt', 'r') as data:
-            
-            lines = data.readlines()
-            
-            for line in lines:
-                
-                # split based on '/' which separates each piece of information when we saved it
-                line = line.split('/')
-                
-                # dictionary was stored as string; this changes it to dictionary again
-                line[4] = ast.literal_eval(line[4])
-                
-                # corresponds to Stall(name, _open, close, days, menu)
-                stall = Stall(line[0], line[1], line[2], line[3], line[4])
-
-                # if name of stall == name of stall when clicked, display items of menu
-                if stall.name == name:
-                    
-                    # displaying items in menu
-                    for key, value in stall.menu.items():
-                        label_key = tk.Label(frame.interior, text=key, font=menu_font)
-                        label_value = tk.Label(frame.interior, text=value, font=menu_font)
-                        
-                        label_key.pack()
-                        label_value.pack()
         
+###########################################################################
+# Cleaner with pickle
+###########################################################################
+        for stall in self.stalls:
+            # if name of stall == name of stall when clicked, display items of menu
+            if stall.name == name:
+
+                # displaying items in menu
+                for key, value in stall.menu.items():
+                    label_key = tk.Label(frame.interior, text=key, font=menu_font)
+                    label_value = tk.Label(frame.interior, text=value, font=menu_font)
+
+                    label_key.pack()
+                    label_value.pack()
+
         frame.tkraise()
+###########################################################################
+# End of above block
+###########################################################################
+
+
+###########################################################################
+# Previous Draft
+###########################################################################
+
+#     def show_menu(self, container, controller, name):
+#         print('showing', name)
+#         controller.show_frame(container, 'refresh')
+        
+#         frame = controller.frames[container]
+        
+#         # open file in read mode
+#         with open('stall.txt', 'r') as data:
+            
+#             # generates a list where each element is an individual line in the file
+#             lines = data.readlines()
+            
+#             # for each individual line in the list of lines
+#             for line in lines:
+                
+#                 # information is stored in the following format
+#                 # name/opentime/closetime/daysopen/menu
+#                 # split seperates each line into a list where each element is now
+#                 # name or opentime or closetime or days or openmenu
+#                 # now u have:
+#                 # lines = [ [name, opentime, closetime, daysopen, menu],
+#                 #           [                                         ],
+#                 #            ...
+#                 #         ]
+#                 line = line.split('/')
+                
+#                 # menu is a dictionary that had to be stored as string
+#                 # this line forces python to read whats in the string so as to realise its a dict
+#                 # and proceeds to read it as a dict
+#                 line[4] = ast.literal_eval(line[4])
+                
+#                 # creates a stall object with the respective inputs
+#                 # corresponds to Stall(name, _open, close, days, menu)
+#                 stall = Stall(line[0], line[1], line[2], line[3], line[4])
+
+#                 # if name of stall == name of stall when clicked, display items of menu
+#                 if stall.name == name:
+                    
+#                     # displaying items in menu
+#                     for key, value in stall.menu.items():
+#                         label_key = tk.Label(frame.interior, text=key, font=menu_font)
+#                         label_value = tk.Label(frame.interior, text=value, font=menu_font)
+                        
+#                         label_key.pack()
+#                         label_value.pack()
+        
+#         frame.tkraise()
 
 class ShowMenu(tk.Frame):
     def __init__(self, parent, controller):
@@ -264,7 +410,7 @@ class ShowMenu(tk.Frame):
         self.waiting_field.bind('<FocusIn>', lambda *args: self.on_entry_click())
         self.waiting_field.bind('<FocusOut>', lambda *args: self.on_focusout())
         
-        calculate_button = ttk.Button(self, text='Calculate', command=lambda: self.waiting_time(var.get()))
+        calculate_button = ttk.Button(self, text='Calculate', command=lambda: self.waiting_time(var.get(), controller))
         calculate_button.pack(anchor='nw')
         
         # create a canvas object and a vertical scrollbar for scrolling it
@@ -303,7 +449,7 @@ class ShowMenu(tk.Frame):
             self.canvas.itemconfigure(self.interior_id, width=self.canvas.winfo_width())
             
     def _on_mousewheel(self, event):
-        self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        self.canvas.yview_scroll(int(-1*(event.delta/12)), "units")
         
     def on_entry_click(self):
         print('in')
@@ -317,7 +463,7 @@ class ShowMenu(tk.Frame):
             self.waiting_field.insert(0, 'Enter number of people currently in queue.')
             self.waiting_field.config(fg = 'grey')
             
-    def waiting_time(self, pax):
+    def waiting_time(self, pax, controller):
         print('calculating')
         total_time = 0
         
@@ -330,17 +476,38 @@ class ShowMenu(tk.Frame):
                 total_time += time_taken
 
             self.top = tk.Toplevel(self)
-            self.top.geometry('{}x{}+{}+{}'.format(200, 50, 368, 132))
+            self.top.geometry('{}x{}+{}+{}'.format(200, 50, start_x, start_y))
             text = 'Estimated waiting time: {} minutes'.format(int(total_time))
             tk.Label(self.top, text=text).pack()
             ttk.Button(self.top, text='Okay', command=lambda: self.top.destroy()).pack()
             
         except:
             top = tk.Toplevel(self)
-            top.geometry('{}x{}+{}+{}'.format(200, 50, 368, 132))
+            top.geometry('{}x{}+{}+{}'.format(200, 50, start_x, start_y))
             tk.Label(top, text='Please enter a number.').pack()
             ttk.Button(top, text='Okay', command=lambda: top.destroy()).pack()
 
+def dimensions():
+    app = Window()
+
+    # set window to 800x600 and place it in center of your screen
+    screen_width = app.winfo_screenwidth()
+    screen_height = app.winfo_screenheight()
+
+    win_width = 800
+    win_height = 600
+
+    # maths to fit to center of screen
+    start_x = int((screen_width/2) - (win_width/2))
+    start_y = int((screen_height/2) - (win_height/2))
+
+    app.geometry('{}x{}+{}+{}'.format(win_width, win_height, start_x, start_y))
+
+    app.destroy()
+    
+    return start_x, start_y
+            
 date_selection = False
 timerange_selection = False
-shrink_entry = False
+
+start_x, start_y = dimensions()
