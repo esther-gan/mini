@@ -2,6 +2,8 @@ from GUI import *
 
 date_selection = False
 timerange_selection = False
+directory = 'images{}{}'
+images = {}
 
 application = Window()
 

@@ -10,6 +10,8 @@ import time
 from Fonts import *
 from StallModule import Stall
 import pickle
+import os
+from PIL import Image, ImageTk
 
 class Window(tk.Tk):
     def __init__(self, *args, **kwargs):
@@ -51,6 +53,7 @@ class Window(tk.Tk):
         if string != 'load' and string != 'refresh':
             print('wrong string:', string, type(string))
             
+
 class MainMenu(tk.Frame):
     def __init__(self, parent, controller):
         tk.Frame.__init__(self, parent)
@@ -60,6 +63,16 @@ class MainMenu(tk.Frame):
         
         style = ttk.Style()
         style.configure('general.TButton', font = ('Time News Roman','25'))
+################################################
+# Newest update
+################################################
+        create_images()
+        image = images['bg'][0]
+        photo = images['bg'][1]
+        bg_label = tk.Label(self, image=photo)
+        bg_label.image = photo
+        bg_label.pack()
+################################################
         
         button1 = ttk.Button(self, text='View Stalls', style='general.TButton',
                              command=lambda: controller.show_frame(ViewStalls, 'load'))
@@ -152,75 +165,6 @@ class ViewStalls(tk.Frame):
         
         self.stalls = []
         
-###########################################################################
-# Previous Draft
-###########################################################################
-
-#         # open file in read mode
-#         with open('stall.txt', 'r') as data:
-
-#             # generates a list where each element is an individual line in the file
-#             lines = data.readlines()
-
-#             # for each individual line in list of lines
-#             for line in lines:
-                
-#                 # information is stored in the following format
-#                 # name/opentime/closetime/daysopen/menu
-#                 # split seperates each line into a list where each element is now
-#                 # name or opentime or closetime or days or openmenu
-#                 # now u have:
-#                 # lines = [ [name, opentime, closetime, daysopen, menu],
-#                 #           [                                         ],
-#                 #            ...
-#                 #         ]
-#                 line = line.split('/')
-                
-#                 # menu is a dictionary that had to be stored as string
-#                 # this line forces python to read whats in the string so as to realise its a dict
-#                 # and proceeds to read it as a dict
-#                 line[4] = ast.literal_eval(line[4])
-                
-#                 # creates a stall object with the respetive inputs
-#                 stall = Stall(line[0], line[1], line[2], line[3], line[4])
-                
-#                 # date_selection is the variable that stores user input for date
-#                 # date_selection is False by default
-#                 # this if block thus runs by default
-#                 if not date_selection:
-                    
-#                     # if calls now_open func in class Stall to check if stall open now
-#                     # if yes then display as button
-#                     if stall.now_open():
-                        
-#                         # recall show_menu(self, container, controller, name)
-#                         # if this was the command:
-#                         # command=self.show_menu(ShowMenu, controller, stall.name) will run on initialization
-#                         # meaning when button is created, the show_menu function will attempt to execute
-#                         #
-#                         # if this was the command:
-#                         # command=lambda: self.show_menu(ShowMenu, controller, stall.name)
-#                         # stall.name will be written over
-#                         # meaning every button when clicked will run the show_menu function
-#                         # but with the last stall object's stall.name as the input to the show_menu function
-#                         #
-#                         # the command below will store each unique stall.name as input to a partial function
-#                         # that will be called when the respective button is clicked
-#                         button_x = ttk.Button(self.interior, text=stall.name, style='stall_name.TButton',
-#                                               command=functools.partial(self.show_menu, ShowMenu, controller, stall.name))
-#                         button_x.pack(anchor='center')
-#                 else:
-#                     _open = parse(timerange_selection.split('-')[0]).time()
-#                     close = parse(timerange_selection.split('-')[1]).time()
-#                     if stall.is_open(_open, close, line[3]):
-#                         button_x = ttk.Button(self.interior, text=stall.name, style='stall_name.TButton',
-#                                               command=functools.partial(self.show_menu, ShowMenu, controller, stall.name))
-#                         button_x.pack(anchor='center')
-
-
-###########################################################################
-# Cleaner with pickle
-###########################################################################
         # load all pickled objects into the list self.stalls
         with open('stall', 'rb') as data:
             try:
@@ -253,10 +197,18 @@ class ViewStalls(tk.Frame):
                     #
                     # the command below will store each unique stall.name as input to a partial function
                     # that will be called when the respective button is clicked
+                    
+################################################
+# Newest update
+################################################
+                    image = images[stall.name][0]
+                    photo = images[stall.name][1]
                     button_x = ttk.Button(self.interior, text=stall.name, style='stall_name.TButton',
+                                          image=photo, compound=tk.LEFT,
                                           command=functools.partial(self.show_menu, ShowMenu, controller, stall.name))
                     button_x.pack(anchor='center')
-                    
+################################################
+
             else:
                 # user input for time range is stored in time_range_selection
                 # split to get start and end to put into stall function
@@ -264,13 +216,18 @@ class ViewStalls(tk.Frame):
                 _open = parse(timerange_selection.split('-')[0]).time()
                 close = parse(timerange_selection.split('-')[1]).time()
                 if stall.is_open(_open, close, stall.days):
+                    
+################################################
+# Newest update
+################################################
+                    image = images[stall.name][0]
+                    photo = images[stall.name][1]
+                    
                     button_x = ttk.Button(self.interior, text=stall.name, style='stall_name.TButton',
+                                          image=photo, compound=tk.LEFT,
                                           command=functools.partial(self.show_menu, ShowMenu, controller, stall.name))
                     button_x.pack(anchor='center')
-
-###########################################################################
-# End of above block of edit
-###########################################################################
+################################################
                     
     # store current timerange in global var, refresh ViewStalls
     def callback(self, controller, *args):
@@ -321,10 +278,6 @@ class ViewStalls(tk.Frame):
         
         frame = controller.frames[container]
         
-        
-###########################################################################
-# Cleaner with pickle
-###########################################################################
         for stall in self.stalls:
             # if name of stall == name of stall when clicked, display items of menu
             if stall.name == name:
@@ -338,62 +291,6 @@ class ViewStalls(tk.Frame):
                     label_value.pack()
 
         frame.tkraise()
-###########################################################################
-# End of above block
-###########################################################################
-
-
-###########################################################################
-# Previous Draft
-###########################################################################
-
-#     def show_menu(self, container, controller, name):
-#         print('showing', name)
-#         controller.show_frame(container, 'refresh')
-        
-#         frame = controller.frames[container]
-        
-#         # open file in read mode
-#         with open('stall.txt', 'r') as data:
-            
-#             # generates a list where each element is an individual line in the file
-#             lines = data.readlines()
-            
-#             # for each individual line in the list of lines
-#             for line in lines:
-                
-#                 # information is stored in the following format
-#                 # name/opentime/closetime/daysopen/menu
-#                 # split seperates each line into a list where each element is now
-#                 # name or opentime or closetime or days or openmenu
-#                 # now u have:
-#                 # lines = [ [name, opentime, closetime, daysopen, menu],
-#                 #           [                                         ],
-#                 #            ...
-#                 #         ]
-#                 line = line.split('/')
-                
-#                 # menu is a dictionary that had to be stored as string
-#                 # this line forces python to read whats in the string so as to realise its a dict
-#                 # and proceeds to read it as a dict
-#                 line[4] = ast.literal_eval(line[4])
-                
-#                 # creates a stall object with the respective inputs
-#                 # corresponds to Stall(name, _open, close, days, menu)
-#                 stall = Stall(line[0], line[1], line[2], line[3], line[4])
-
-#                 # if name of stall == name of stall when clicked, display items of menu
-#                 if stall.name == name:
-                    
-#                     # displaying items in menu
-#                     for key, value in stall.menu.items():
-#                         label_key = tk.Label(frame.interior, text=key, font=menu_font)
-#                         label_value = tk.Label(frame.interior, text=value, font=menu_font)
-                        
-#                         label_key.pack()
-#                         label_value.pack()
-        
-#         frame.tkraise()
 
 class ShowMenu(tk.Frame):
     def __init__(self, parent, controller):
@@ -487,6 +384,7 @@ class ShowMenu(tk.Frame):
             tk.Label(top, text='Please enter a number.').pack()
             ttk.Button(top, text='Okay', command=lambda: top.destroy()).pack()
 
+            
 def dimensions():
     app = Window()
 
@@ -506,8 +404,33 @@ def dimensions():
     app.destroy()
     
     return start_x, start_y
+
+################################################
+# Newest update
+################################################
+def create_images():
+    for filename in os.listdir(directory.format('', '')):
+        print(filename)
+        image = Image.open(directory.format('/', filename))
+        
+        if filename == 'bg.png':
+            image = image.resize((800, 600))
+            photo = ImageTk.PhotoImage(image)
             
+        else:
+            image = image.resize((75, 75))
+            photo = ImageTk.PhotoImage(image)
+        
+        # splits filename into list of 2 elements
+        # reassigns the first element; the name to itself
+        filename = filename.split('.')[0]
+        # stores in a dict
+        images[str(filename)] = [image, photo]
+################################################
+
+# stuff repeated because of splitting of code into files
 date_selection = False
 timerange_selection = False
-
+directory = 'images{}{}'
+images = {}
 start_x, start_y = dimensions()
